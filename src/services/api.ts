@@ -97,6 +97,18 @@ export const imagesAPI = {
   getAll: async () => {
     const response = await api.get('/images');
     return response.data;
+  },
+  upload: async (formData: FormData) => {
+    const response = await api.post('/images/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return response.data;
+  },
+  delete: async (filename: string) => {
+    const response = await api.delete(`/images/${filename}`);
+    return response.data;
   }
 };
 

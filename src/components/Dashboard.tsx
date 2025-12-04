@@ -1,9 +1,9 @@
-  import React, { useState, useEffect } from 'react';
+  import React, { useState, useEffect, useRef } from 'react';
 import { productsAPI, imagesAPI, categoriesAPI } from '../services/api';
 import { Button } from './ui/button';
 import toast, { Toaster } from 'react-hot-toast';
-import { 
-  Package, 
+import {
+  Package,
   Plus,
   Search,
   Filter,
@@ -26,7 +26,8 @@ import {
   Tags,
   FolderOpen,
   TrendingUp,
-  Archive
+  Archive,
+  Upload
 } from 'lucide-react';
 
 interface Product {
@@ -184,9 +185,9 @@ const Dashboard: React.FC = () => {
   };
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-IN', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'INR'
     }).format(price);
   };
 
@@ -1377,6 +1378,8 @@ const ImageSelector: React.FC<ImageSelectorProps> = ({ url, index, onChange, onR
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [imageStatus, setImageStatus] = useState<'loading' | 'loaded' | 'error' | 'empty'>('empty');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load available images on component mount
   useEffect(() => {
@@ -1409,12 +1412,48 @@ const ImageSelector: React.FC<ImageSelectorProps> = ({ url, index, onChange, onR
     try {
       setIsLoading(true);
       const response = await imagesAPI.getAll();
-      setAvailableImages(response.images || []);
+      setAvailableImages(response.data?.map((img: any) => img.name) || []);
     } catch (error) {
       console.error('Failed to load available images:', error);
       toast.error('Failed to load available images');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    const validFiles = Array.from(files).filter(file => {
+      const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+      return ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'].includes(ext);
+    });
+
+    if (validFiles.length === 0) {
+      toast.error('Please select valid image files');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      validFiles.forEach(file => {
+        formData.append('images', file);
+      });
+
+      const response = await imagesAPI.upload(formData);
+      toast.success(`Successfully uploaded ${response.count} image(s)`);
+
+      // Reload images and select the first uploaded image
+      await loadAvailableImages();
+      if (response.data && response.data.length > 0) {
+        onChange(response.data[0].path);
+      }
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast.error(error?.response?.data?.message || 'Failed to upload images');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -1484,8 +1523,8 @@ const ImageSelector: React.FC<ImageSelectorProps> = ({ url, index, onChange, onR
             {/* Dropdown */}
             {isDropdownOpen && (
               <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-card border border-border rounded-sm shadow-lg max-h-64 overflow-hidden">
-                {/* Search */}
-                <div className="p-3 border-b border-border">
+                {/* Search and Upload */}
+                <div className="p-3 border-b border-border space-y-2">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                     <input
@@ -1496,6 +1535,24 @@ const ImageSelector: React.FC<ImageSelectorProps> = ({ url, index, onChange, onR
                       placeholder="Search images..."
                     />
                   </div>
+                  <Button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    size="sm"
+                    className="w-full flex items-center gap-2"
+                  >
+                    <Upload className="h-4 w-4" />
+                    {uploading ? 'Uploading...' : 'Upload New Images'}
+                  </Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={(e) => handleFileUpload(e.target.files)}
+                    className="hidden"
+                  />
                 </div>
 
                 {/* Images List */}
@@ -1794,7 +1851,7 @@ const EditProductForm: React.FC<EditProductFormProps> = ({ product, onSave, onCa
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
-                Current Price ($) *
+                Current Price (₹) *
               </label>
               <input
                 type="number"
@@ -1811,7 +1868,7 @@ const EditProductForm: React.FC<EditProductFormProps> = ({ product, onSave, onCa
 
             <div>
               <label className="block text-sm font-medium text-foreground mb-2">
-                Original Price ($) *
+                Original Price (₹) *
               </label>
               <input
                 type="number"
@@ -1991,9 +2048,9 @@ interface ProductDetailsViewProps {
 
 const ProductDetailsView: React.FC<ProductDetailsViewProps> = ({ product }) => {
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-IN', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'INR'
     }).format(price);
   };
 
